@@ -1,0 +1,85 @@
+
+%%capture
+!pip install git+https://github.com/SamuMazzi/instaloader.git #-- install only in runtime GCE not local bitch
+
+
+
+
+
+from pickle import FALSE
+import instaloader
+
+# download pictures, download json file, but don't compress json file.
+L = instaloader.Instaloader(download_pictures=False,
+                            download_video_thumbnails=False,
+                            download_videos=False,
+                            download_geotags=False,
+                            download_comments=False,
+                            save_metadata=True,
+                            compress_json=False
+                            )
+
+L.load_session("", {
+"csrftoken": "Efbyb08Smw1aifPtk1aPjMzKOl3XTFvx",
+"sessionid": "62436250643%3AViRIOKvXwegvDO%3A25%3AAYd7kBfMV3pRJm4PahZuXWBCLnLtLdH0C5PWG0DTbg",
+"ds_user_id": "62436250643",
+"mid": "Z6ObTgAEAAHjWtIbRGJqwAWaME_f",
+"ig_did": "A50CB005-D2BD-477F-BF2A-A76818A02537"
+})
+
+# two arguments: keyword and number of files
+def get_it(keyword,numbers_of_files):
+    while numbers_of_files > 0:
+        for post in L.get_hashtag_posts(keyword):
+            # post is an instance of instaloader.Post
+            L.download_post(post, target='#'+keyword)
+            numbers_of_files-=1
+            # print(numbers_of_files)
+            if numbers_of_files ==0:
+                break
+        print("loop ended for " + keyword)
+
+# sample function
+get_it("tours",20)
+
+put all json content in a single dataframe and save it in csv with the keyword_number_files_and_date_run_at 
+
+
+
+## Algo to pick the best content : 
+
+# Remove rows with all NaN values:
+df = df.dropna(how='all')
+
+# Check unique content types (this might indicate post, video, etc.)
+print("Unique content types:", df['node.__typename'].unique())
+
+# Let's define weights for engagement score (you can adjust these weights)
+like_weight = 1
+comment_weight = 2  # Assuming comments are more valuable
+view_weight = 0.5   # Assuming views have a lower weight
+
+# Fill NaN values with zeros for numerical columns (important for calculation)
+df['node.edge_media_preview_like.count'] = df['node.edge_media_preview_like.count'].fillna(0)
+df['node.iphone_struct.edge_media_to_comment.count'] = df['node.iphone_struct.edge_media_to_comment.count'].fillna(0)
+df['node.video_view_count'] = df['node.video_view_count'].fillna(0)
+
+# Calculate engagement score
+df['engagement_score'] = (
+    df['node.edge_media_preview_like.count'] * like_weight +
+    df['node.iphone_struct.edge_media_to_comment.count'] * comment_weight +
+    df['node.video_view_count'] * view_weight
+)
+
+
+#Reseach formula:  https://chatgpt.com/share/67e9398e-94d4-8000-aa33-f658a7938ddf
+# Calculate engagement score (percentage-based)
+df['engagement_score_smart_recommedation'] = (
+    (df['node.edge_media_preview_like.count'] * like_weight +
+     df['node.iphone_struct.edge_media_to_comment.count'] * comment_weight) /
+    df['node.video_view_count']
+) * 100  # Convert to percentage
+
+
+
+

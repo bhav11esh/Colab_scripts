@@ -1,0 +1,499 @@
+create a Insta software from library :https://github.com/SamuMazzi/instaloader.git
+
+
+
+which have these functionality: 
+Instaloader (Main Class)
+class instaloader.Instaloader(sleep: bool = True, quiet: bool = False, user_agent: str | None = None, dirname_pattern: str | None = None, filename_pattern: str | None = None, download_pictures=True, download_videos: bool = True, download_video_thumbnails: bool = True, download_geotags: bool = False, download_comments: bool = False, save_metadata: bool = True, compress_json: bool = True, post_metadata_txt_pattern: str | None = None, storyitem_metadata_txt_pattern: str | None = None, max_connection_attempts: int = 3, request_timeout: float = 300.0, rate_controller: Callable[[InstaloaderContext], RateController] | None = None, resume_prefix: str | None = 'iterator', check_resume_bbd: bool = True, slide: str | None = None, fatal_status_codes: List[int] | None = None, iphone_support: bool = True, title_pattern: str | None = None, sanitize_paths: bool = False)
+Instaloader Class.
+
+Parameters:
+quiet – --quiet
+
+user_agent – --user-agent
+
+dirname_pattern – --dirname-pattern, default is {target}
+
+filename_pattern – --filename-pattern, default is {date_utc}_UTC
+
+title_pattern – --title-pattern, default is {date_utc}_UTC_{typename} if dirname_pattern contains {target} or {profile}, {target}_{date_utc}_UTC_{typename} otherwise.
+
+download_pictures – not --no-pictures
+
+download_videos – not --no-videos
+
+download_video_thumbnails – not --no-video-thumbnails
+
+download_geotags – --geotags
+
+download_comments – --comments
+
+save_metadata – not --no-metadata-json
+
+compress_json – not --no-compress-json
+
+post_metadata_txt_pattern – --post-metadata-txt, default is {caption}. Set to empty string to avoid creation of post metadata txt file.
+
+storyitem_metadata_txt_pattern – --storyitem-metadata-txt, default is empty (=none)
+
+max_connection_attempts – --max-connection-attempts
+
+request_timeout – --request-timeout, set per-request timeout (seconds)
+
+rate_controller – Generator for a RateController to override rate controlling behavior
+
+resume_prefix – --resume-prefix, or None for --no-resume.
+
+check_resume_bbd – Whether to check the date of expiry of resume files and reject them if expired.
+
+slide – --slide
+
+fatal_status_codes – --abort-on
+
+iphone_support – not --no-iphone
+
+sanitize_paths – --sanitize-paths
+
+context
+The associated InstaloaderContext with low-level communication functions and logging.
+
+anonymous_copy()
+Yield an anonymous, otherwise equally-configured copy of an Instaloader instance; Then copy its error log.
+
+check_profile_id(profile_name: str, latest_stamps: LatestStamps | None = None) → Profile
+Consult locally stored ID of profile with given name, check whether ID matches and whether name has changed and return current name of the profile, and store ID of profile.
+
+Parameters:
+profile_name – Profile name
+
+latest_stamps – Database of downloaded data. If present, IDs are retrieved from it, otherwise from the target directory
+
+Returns:
+Instance of current profile
+
+Changed in version 4.8: Add latest_stamps parameter.
+
+close()
+Close associated session objects and repeat error log.
+
+download_feed_posts(max_count: int | None = None, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None) → None
+Download pictures from the user’s feed.
+
+Example to download up to the 20 pics the user last liked:
+
+loader = Instaloader()
+loader.load_session_from_file('USER')
+loader.download_feed_posts(max_count=20, fast_update=True,
+                           post_filter=lambda post: post.viewer_has_liked)
+Parameters:
+max_count – Maximum count of pictures to download
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+post_filter – function(post), which returns True if given picture should be downloaded
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+download_hashtag(hashtag: Hashtag | str, max_count: int | None = None, post_filter: Callable[[Post], bool] | None = None, fast_update: bool = False, profile_pic: bool = True, posts: bool = True) → None
+Download pictures of one hashtag.
+
+To download the last 30 pictures with hashtag #cat, do:
+
+loader = Instaloader()
+loader.download_hashtag('cat', max_count=30)
+Parameters:
+hashtag – Hashtag to download, as instance of Hashtag, or string without leading ‘#’
+
+max_count – Maximum count of pictures to download
+
+post_filter – function(post), which returns True if given picture should be downloaded
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+profile_pic – not --no-profile-pic.
+
+posts – not --no-posts.
+
+Changed in version 4.4: Add parameters profile_pic and posts.
+
+download_hashtag_profilepic(hashtag: Hashtag) → None
+Downloads and saves the profile picture of a Hashtag.
+
+Added in version 4.4.
+
+download_highlight_cover(highlight: Highlight, target: str | Path) → None
+Downloads and saves Highlight cover picture.
+
+Added in version 4.3.
+
+download_highlights(user: int | Profile, fast_update: bool = False, filename_target: str | None = None, storyitem_filter: Callable[[StoryItem], bool] | None = None) → None
+Download available highlights from a user whose ID is given. To use this, one needs to be logged in.
+
+Added in version 4.1.
+
+Changed in version 4.3: Also downloads and saves the Highlight’s cover pictures.
+
+Parameters:
+user – ID or Profile of the user whose highlights should get downloaded.
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+filename_target – Replacement for {target} in dirname_pattern and filename_pattern or None if profile name and the highlights’ titles should be used instead
+
+storyitem_filter – function(storyitem), which returns True if given StoryItem should be downloaded
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+download_igtv(profile: Profile, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None, latest_stamps: LatestStamps | None = None) → None
+Download IGTV videos of a profile.
+
+Added in version 4.3.
+
+Changed in version 4.8: Add latest_stamps parameter.
+
+download_location(location: str, max_count: int | None = None, post_filter: Callable[[Post], bool] | None = None, fast_update: bool = False) → None
+Download pictures of one location.
+
+To download the last 30 pictures with location 362629379, do:
+
+loader = Instaloader()
+loader.download_location(362629379, max_count=30)
+Parameters:
+location – Location to download, as Instagram numerical ID
+
+max_count – Maximum count of pictures to download
+
+post_filter – function(post), which returns True if given picture should be downloaded
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+Added in version 4.2.
+
+Changed in version 4.2.9: Require being logged in (as required by Instagram)
+
+download_pic(filename: str, url: str, mtime: datetime, filename_suffix: str | None = None, _attempt: int = 1) → bool
+Downloads and saves picture with given url under given directory with given timestamp. Returns true, if file was actually downloaded, i.e. updated.
+
+download_post(post: Post, target: str | Path) → bool
+Download everything associated with one instagram post node, i.e. picture, caption and video.
+
+Parameters:
+post – Post to download.
+
+target – Target name, i.e. profile name, #hashtag, :feed; for filename.
+
+Returns:
+True if something was downloaded, False otherwise, i.e. file was already there
+
+download_profile(profile_name: str | Profile, profile_pic: bool = True, profile_pic_only: bool = False, fast_update: bool = False, download_stories: bool = False, download_stories_only: bool = False, download_tagged: bool = False, download_tagged_only: bool = False, post_filter: Callable[[Post], bool] | None = None, storyitem_filter: Callable[[StoryItem], bool] | None = None) → None
+Download one profile
+
+Deprecated since version 4.1: Use Instaloader.download_profiles().
+
+download_profilepic(profile: Profile) → None
+Downloads and saves profile pic.
+
+download_profilepic_if_new(profile: Profile, latest_stamps: LatestStamps | None) → None
+Downloads and saves profile pic if it has not been downloaded before.
+
+Parameters:
+latest_stamps – Database with the last downloaded data. If not present, the profile pic is downloaded unless it already exists
+
+Added in version 4.8.
+
+download_profiles(profiles: Set[Profile], profile_pic: bool = True, posts: bool = True, tagged: bool = False, igtv: bool = False, highlights: bool = False, stories: bool = False, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None, storyitem_filter: Callable[[Post], bool] | None = None, raise_errors: bool = False, latest_stamps: LatestStamps | None = None, max_count: int | None = None, reels: bool = False)
+High-level method to download set of profiles.
+
+Parameters:
+profiles – Set of profiles to download.
+
+profile_pic – not --no-profile-pic.
+
+posts – not --no-posts.
+
+tagged – --tagged.
+
+igtv – --igtv.
+
+highlights – --highlights.
+
+stories – --stories.
+
+fast_update – --fast-update.
+
+post_filter – --post-filter.
+
+storyitem_filter – --post-filter.
+
+raise_errors – Whether LoginRequiredException and PrivateProfileNotFollowedException should be raised or catched and printed with InstaloaderContext.error_catcher().
+
+latest_stamps – --latest-stamps.
+
+max_count – Maximum count of posts to download.
+
+reels – --reels.
+
+Added in version 4.1.
+
+Changed in version 4.3: Add igtv parameter.
+
+Changed in version 4.8: Add latest_stamps parameter.
+
+Changed in version 4.13: Add max_count parameter.
+
+Changed in version 4.14: Add reels parameter.
+
+download_reels(profile: Profile, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None, latest_stamps: LatestStamps | None = None) → None
+Download reels videos of a profile.
+
+Added in version 4.14.0.
+
+download_saved_posts(max_count: int | None = None, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None) → None
+Download user’s saved pictures.
+
+Parameters:
+max_count – Maximum count of pictures to download
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+post_filter – function(post), which returns True if given picture should be downloaded
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+download_stories(userids: List[int | Profile] | None = None, fast_update: bool = False, filename_target: str | None = ':stories', storyitem_filter: Callable[[StoryItem], bool] | None = None, latest_stamps: LatestStamps | None = None) → None
+Download available stories from user followees or all stories of users whose ID are given. Does not mark stories as seen. To use this, one needs to be logged in
+
+Parameters:
+userids – List of user IDs or Profiles to be processed in terms of downloading their stories
+
+fast_update – If true, abort when first already-downloaded picture is encountered
+
+filename_target – Replacement for {target} in dirname_pattern and filename_pattern or None if profile name should be used instead
+
+storyitem_filter – function(storyitem), which returns True if given StoryItem should be downloaded
+
+latest_stamps – Database with the last times each user was scraped
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+Changed in version 4.8: Add latest_stamps parameter.
+
+download_storyitem(item: StoryItem, target: str | Path) → bool
+Download one user story.
+
+Parameters:
+item – Story item, as in story[‘items’] for story in get_stories()
+
+target – Replacement for {target} in dirname_pattern and filename_pattern
+
+Returns:
+True if something was downloaded, False otherwise, i.e. file was already there
+
+download_tagged(profile: Profile, fast_update: bool = False, target: str | None = None, post_filter: Callable[[Post], bool] | None = None, latest_stamps: LatestStamps | None = None) → None
+Download all posts where a profile is tagged.
+
+Added in version 4.1.
+
+Changed in version 4.8: Add latest_stamps parameter.
+
+download_title_pic(url: str, target: str | Path, name_suffix: str, owner_profile: Profile | None, _attempt: int = 1) → None
+Downloads and saves a picture that does not have an association with a Post or StoryItem, such as a Profile picture or a Highlight cover picture. Modification time is taken from the HTTP response headers.
+
+Added in version 4.3.
+
+format_filename(item: Post | StoryItem | PostSidecarNode | TitlePic, target: str | Path | None = None)
+Format filename of a Post or StoryItem according to filename-pattern parameter.
+
+Added in version 4.1.
+
+format_filename_within_target_path(target: str | Path, owner_profile: Profile | None, identifier: str, name_suffix: str, extension: str)
+Returns a filename within the target path.
+
+Added in version 4.5.
+
+get_explore_posts() → NodeIterator[Post]
+Get Posts which are worthy of exploring suggested by Instagram.
+
+Returns:
+Iterator over Posts of the user’s suggested posts.
+
+Return type:
+NodeIterator[Post]
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+get_feed_posts() → Iterator[Post]
+Get Posts of the user’s feed.
+
+Returns:
+Iterator over Posts of the user’s feed.
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+get_hashtag_posts(hashtag: str) → Iterator[Post]
+Get Posts associated with a #hashtag.
+
+Deprecated since version 4.4: Use Hashtag.get_posts_resumable().
+
+get_highlights(user: int | Profile) → Iterator[Highlight]
+Get all highlights from a user. To use this, one needs to be logged in.
+
+Added in version 4.1.
+
+Parameters:
+user – ID or Profile of the user whose highlights should get fetched.
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+get_location_posts(location: str) → Iterator[Post]
+Get Posts which are listed by Instagram for a given Location.
+
+Returns:
+Iterator over Posts of a location’s posts
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+Added in version 4.2.
+
+Changed in version 4.2.9: Require being logged in (as required by Instagram)
+
+get_stories(userids: List[int] | None = None) → Iterator[Story]
+Get available stories from followees or all stories of users whose ID are given. Does not mark stories as seen. To use this, one needs to be logged in
+
+Parameters:
+userids – List of user IDs to be processed in terms of downloading their stories, or None.
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+property has_stored_errors: bool
+Returns whether any error has been reported and stored to be repeated at program termination.
+
+interactive_login(username: str) → None
+Logs in and internally stores session, asking user for password interactively.
+
+Raises:
+InvalidArgumentException – when in quiet mode.
+
+LoginException – If the provided username does not exist.
+
+ConnectionException – If connection to Instagram failed.
+
+Changed in version 4.12: Raises InvalidArgumentException instead of LoginRequiredException when in quiet mode. Raises LoginException instead of InvalidArgumentException when the username does not exist.
+
+load_profile_id(profile_name: str) → int | None
+Load ID of profile from profile directory.
+
+Added in version 4.8.
+
+load_session(username: str, session_data: dict) → None
+Internally stores requests.Session object from dict.
+
+Added in version 4.10.
+
+load_session_from_file(username: str, filename: str | None = None) → None
+Internally stores requests.Session object loaded from file.
+
+If filename is None, the file with the default session path is loaded.
+
+Raises:
+FileNotFoundError – If the file does not exist.
+
+login(user: str, passwd: str) → None
+Log in to instagram with given username and password and internally store session object.
+
+Raises:
+BadCredentialsException – If the provided password is wrong.
+
+TwoFactorAuthRequiredException – First step of 2FA login done, now call Instaloader.two_factor_login().
+
+LoginException – An error happened during login (for example, an invalid response was received). Or if the provided username does not exist.
+
+Changed in version 4.12: Raises LoginException instead of ConnectionException when an error happens. Raises LoginException instead of InvalidArgumentException when the username does not exist.
+
+posts_download_loop(posts: Iterator[Post], target: str | Path, fast_update: bool = False, post_filter: Callable[[Post], bool] | None = None, max_count: int | None = None, total_count: int | None = None, owner_profile: Profile | None = None, takewhile: Callable[[Post], bool] | None = None, possibly_pinned: int = 0) → None
+Download the Posts returned by given Post Iterator.
+
+Added in version 4.4.
+
+Changed in version 4.5: Transparently resume an aborted operation if posts is a NodeIterator.
+
+Changed in version 4.8: Add takewhile parameter.
+
+Changed in version 4.10.3: Add possibly_pinned parameter.
+
+Parameters:
+posts – Post Iterator to loop through.
+
+target – Target name.
+
+fast_update – --fast-update.
+
+post_filter – --post-filter.
+
+max_count – Maximum count of Posts to download (--count).
+
+total_count – Total number of posts returned by given iterator.
+
+owner_profile – Associated profile, if any.
+
+takewhile – Expression evaluated for each post. Once it returns false, downloading stops.
+
+possibly_pinned – Number of posts that might be pinned. These posts do not cause download to stop even if they’ve already been downloaded.
+
+save_caption(filename: str, mtime: datetime, caption: str) → None
+Updates picture caption / Post metadata info
+
+save_location(filename: str, location: PostLocation, mtime: datetime) → None
+Save post location name and Google Maps link.
+
+save_metadata_json(filename: str, structure: Post | Profile | StoryItem | Hashtag | FrozenNodeIterator) → None
+Saves metadata JSON file of a structure.
+
+save_profile_id(profile: Profile)
+Store ID of profile on profile directory.
+
+Added in version 4.0.6.
+
+save_session() → dict
+Saves internally stored requests.Session object to dict.
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+Added in version 4.10.
+
+save_session_to_file(filename: str | None = None) → None
+Saves internally stored requests.Session object.
+
+Parameters:
+filename – Filename, or None to use default filename.
+
+Raises:
+LoginRequiredException – If called without being logged in.
+
+test_login() → str | None
+Returns the Instagram username to which given requests.Session object belongs, or None.
+
+two_factor_login(two_factor_code) → None
+Second step of login if 2FA is enabled. Not meant to be used directly, use Instaloader.two_factor_login().
+
+Raises:
+InvalidArgumentException – No two-factor authentication pending.
+
+BadCredentialsException – 2FA verification code invalid.
+
+Added in version 4.2.
+
+update_comments(filename: str, post: Post) → None
