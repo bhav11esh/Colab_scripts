@@ -1670,7 +1670,7 @@ elif page == "🏆 View Recommendations":
                 <div style="background-color: rgba(244, 114, 182, 0.1); width: 3rem; height: 3rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F472B6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
                 </div>
-                <div class="stat-value">76.2k</div>
+                <div class="stat-value">76</div>
                 <div class="stat-label">Potential Reach</div>
             </div>
             """, unsafe_allow_html=True)
@@ -1782,7 +1782,7 @@ elif page == "🏆 View Recommendations":
     
     st.markdown("""
     <div style="background-color: #F8FAFC; padding: 15px; border-radius: 8px; border: 1px solid #E2E8F0; font-size: 0.9rem;">
-        <p style="margin-top: 0;">Our app respects Instagram's rate limits:</p>
+        <p style="margin-top: 0;">Our app respects Instagrams rate limits:</p>
         <ul style="margin-bottom: 0; padding-left: 20px;">
             <li>Automatic request throttling</li>
             <li>Smart retry mechanisms</li>
@@ -1814,4 +1814,4 @@ elif page == "🏆 View Recommendations":
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
