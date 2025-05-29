@@ -33,7 +33,12 @@ def set_openai_key():
     else:
         openai.api_key = os.getenv('OPENAI_API_KEY', '')
 
-
+# --- Store/retrieve OpenAI API key in browser cache (query params workaround) ---
+# On app load, check for key in query params
+query_params = st.query_params  # st.query_params is now a property
+if 'openai_api_key' in query_params and query_params['openai_api_key']:
+    if 'openai_api_key' not in st.session_state or st.session_state['openai_api_key'] != query_params['openai_api_key'][0]:
+        st.session_state['openai_api_key'] = query_params['openai_api_key'][0]
 
 def search_instagram_accounts_llm(keyword, max_accounts=10):
     set_openai_key()
@@ -153,6 +158,8 @@ with st.sidebar:
     api_key_input = st.text_input("Enter your OpenAI API Key", type="password", value=st.session_state.get('openai_api_key', ''))
     if api_key_input:
         st.session_state['openai_api_key'] = api_key_input
+        # Save to browser cache (query params workaround)
+        st.query_params["openai_api_key"] = api_key_input
         st.success("OpenAI API Key set for this session.")
     else:
         st.info("Please enter your OpenAI API Key to enable LLM-powered features.")
@@ -365,13 +372,13 @@ elif page == "🔍 Search Accounts":
         st.markdown("<div class='card'>", unsafe_allow_html=True)
         with st.spinner(f"Searching for Instagram accounts related to '{keyword}' via OpenAI LLM..."):
             st.markdown(f"#### Results for '{keyword}'")
-            
             # Use OpenAI LLM to get account suggestions
             found_accounts = search_instagram_accounts_llm(keyword, max_accounts)
             if not found_accounts:
                 st.warning("No accounts found or OpenAI API error.")
                 found_accounts = []
-            
+            # Store in session state for saving
+            st.session_state['found_accounts'] = found_accounts
             # Display found accounts
             found_accounts = found_accounts[:max_accounts]
             
@@ -391,21 +398,19 @@ elif page == "🔍 Search Accounts":
                 st.dataframe(df, use_container_width=True)
                 
                 # Option to save accounts
+                st.markdown("#### Save Verified Accounts")
+                save_filename = st.text_input("Enter filename to save (e.g., verified_accounts.txt):", value="verified_accounts.txt")
+                st.write(f"Current working directory: {os.getcwd()}")
                 if st.button("Save to Verified Accounts List"):
-                    usernames = [a["username"] for a in found_accounts if "username" in a]
-                    # Avoid duplicates: load existing usernames
-                    existing = set()
-                    if os.path.isfile("verified_accounts.txt"):
-                        with open("verified_accounts.txt", "r") as f:
-                            existing = set(line.strip() for line in f if line.strip())
-                    new_usernames = [u for u in usernames if u not in existing]
-                    if new_usernames:
-                        with open("verified_accounts.txt", "a") as f:
-                            for u in new_usernames:
+                    usernames = [a["username"] for a in st.session_state.get('found_accounts', []) if "username" in a]
+                    st.write(f"Usernames to save: {usernames}")
+                    try:
+                        with open(save_filename, "w") as f:
+                            for u in usernames:
                                 f.write(u + "\n")
-                        st.success(f"Saved {len(new_usernames)} new accounts to verified_accounts.txt")
-                    else:
-                        st.info("No new accounts to add.")
+                        st.success(f"Saved {len(usernames)} accounts to {save_filename}")
+                    except Exception as e:
+                        st.error(f"Error saving to {save_filename}: {e}")
             else:
                 st.info("No accounts to display.")
         
@@ -416,10 +421,15 @@ elif page == "✅ Verify Accounts":
     st.markdown("### Verify Instagram Accounts")
     st.markdown("Check if Instagram accounts are public and accessible")
     
+    # List all files matching 'verified_accounts*.txt'
+    verified_files = glob.glob("verified_accounts*.txt")
+    if not verified_files:
+        verified_files = ["verified_accounts.txt"]
+    
     # Input options
     verify_option = st.radio("How would you like to verify accounts?", [
         "Enter account names manually",
-        "Verify from verified_accounts.txt"
+        "Verify from a saved verified accounts file"
     ])
     
     def verify_instagram_account_streamlit(username):
@@ -498,18 +508,19 @@ elif page == "✅ Verify Accounts":
             else:
                 st.error("No accounts could be verified. Try different accounts.")
     else:  # Verify from file
-        st.info("This will verify all accounts in your verified_accounts.txt file")
+        selected_file = st.selectbox("Select a verified accounts file:", verified_files)
+        st.info(f"This will verify all accounts in your {selected_file} file")
         verify_file_button = st.button("Start Verification")
         if verify_file_button:
-            st.info("Loading accounts from verified_accounts.txt...")
+            st.info(f"Loading accounts from {selected_file}...")
             time.sleep(1)
-            if os.path.isfile("verified_accounts.txt"):
-                with open("verified_accounts.txt", "r") as f:
+            if os.path.isfile(selected_file):
+                with open(selected_file, "r") as f:
                     file_accounts = [line.strip() for line in f if line.strip()]
             else:
                 file_accounts = []
             if not file_accounts:
-                st.error("No accounts found in verified_accounts.txt.")
+                st.error(f"No accounts found in {selected_file}.")
             else:
                 st.success(f"Loaded {len(file_accounts)} accounts from file")
                 progress_bar = st.progress(0)
@@ -554,7 +565,7 @@ elif page == "✅ Verify Accounts":
                 successful = sum(1 for r in results if "✅" in r["Status"])
                 if successful > 0:
                     # Overwrite file with only verified accounts
-                    with open("verified_accounts.txt", "w") as f:
+                    with open(selected_file, "w") as f:
                         for a in verified_accounts:
                             f.write(a + "\n")
                     st.success(f"Verification complete: {successful}/{len(file_accounts)} accounts verified and file updated.")
