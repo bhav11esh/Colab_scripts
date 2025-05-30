@@ -202,7 +202,9 @@ def show_top_content_recommendations(df, analyze_type=None):
     # Ensure selected_shortcodes in session state
     if 'selected_shortcodes' not in st.session_state:
         st.session_state['selected_shortcodes'] = set()
-    selected_shortcodes = st.session_state['selected_shortcodes']
+    # Work on a copy to avoid in-place mutation issues
+    selected_shortcodes = set(st.session_state['selected_shortcodes'])
+    checkbox_states = {}
     # Use node.__typename for type and smart_score logic
     typename_col = None
     for col in df.columns:
@@ -244,6 +246,12 @@ def show_top_content_recommendations(df, analyze_type=None):
     top_content = filtered_df.head(30)  # Show more for grid
     cols = st.columns(3)
     for idx, row in top_content.iterrows():
+        post_shortcode = (
+            row.get('node.shortcode')
+            or row.get('node.iphone_struct.shortcode')
+            or ''
+        )
+        checkbox_key = f"select_{post_shortcode}"
         type_str = (
             row.get('node.__typename')
             or row.get('node.iphone_struct.__typename')
@@ -252,11 +260,6 @@ def show_top_content_recommendations(df, analyze_type=None):
         date_str = (
             row.get('node.date')
             or row.get('node.iphone_struct.taken_at_timestamp')
-            or ''
-        )
-        post_shortcode = (
-            row.get('node.shortcode')
-            or row.get('node.iphone_struct.shortcode')
             or ''
         )
         post_url = f"https://www.instagram.com/p/{post_shortcode}"
@@ -280,19 +283,14 @@ def show_top_content_recommendations(df, analyze_type=None):
                 st.markdown(f"""
                 <iframe src=\"https://www.instagram.com/p/{post_shortcode}/embed\" width=\"400\" height=\"480\" frameborder=\"0\" scrolling=\"no\" allowtransparency=\"true\"></iframe>
                 """, unsafe_allow_html=True)
-            checked = st.checkbox("Select this post", key=f"select_{post_shortcode}", value=post_shortcode in selected_shortcodes)
-            if checked:
-                selected_shortcodes.add(post_shortcode)
-            else:
-                selected_shortcodes.discard(post_shortcode)
-    # Download recommendations
-    rec_csv = filtered_df.head(50).to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Download Top 50 Recommendations as CSV",
-        data=rec_csv,
-        file_name="top_content_recommendations.csv",
-        mime="text/csv"
-    )
+            # Place checkbox inside a container for better alignment
+            st.markdown("<div style='margin-top:8px; margin-bottom:8px;'>", unsafe_allow_html=True)
+            checked = st.checkbox("Select this post", key=checkbox_key, value=post_shortcode in selected_shortcodes)
+            st.markdown("</div>", unsafe_allow_html=True)
+        checkbox_states[post_shortcode] = checked
+    # After the loop, update the session state with the new set
+    new_selected = {shortcode for shortcode, checked in checkbox_states.items() if checked}
+    st.session_state['selected_shortcodes'] = new_selected
     # Show filtered/analysed CSV with smart_score
     st.markdown("#### Filtered & Analyzed Data Preview")
     st.dataframe(filtered_df.head(20), use_container_width=True)
@@ -396,33 +394,34 @@ elif page == "🔍 Search Accounts":
                 rename_dict = {"username": "Username", "followers": "Followers", "posts": "Posts", "bio": "Bio", "profile_url": "Profile URL"}
                 df = df.rename(columns=rename_dict)
                 st.dataframe(df, use_container_width=True)
-                
-                # Option to save accounts
-                st.markdown("#### Save Verified Accounts")
-                save_filename = st.text_input("Enter filename to save (e.g., verified_accounts.txt):", value="verified_accounts.txt")
-                st.write(f"Current working directory: {os.getcwd()}")
-                if st.button("Save to Verified Accounts List"):
-                    usernames = [a["username"] for a in st.session_state.get('found_accounts', []) if "username" in a]
-                    st.write(f"Usernames to save: {usernames}")
-                    try:
-                        with open(save_filename, "w") as f:
-                            for u in usernames:
-                                f.write(u + "\n")
-                        st.success(f"Saved {len(usernames)} accounts to {save_filename}")
-                    except Exception as e:
-                        st.error(f"Error saving to {save_filename}: {e}")
-            else:
-                st.info("No accounts to display.")
-        
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # Robust Save to Verified Accounts logic (outside form and rerun-safe)
+    if 'found_accounts' in st.session_state and st.session_state['found_accounts']:
+        st.markdown("#### Save Verified Accounts")
+        save_filename = st.text_input("Enter filename to save (e.g., verified_accounts.txt):", value="verified_accounts.txt", key="save_filename_input")
+        if st.button("Save to Verified Accounts List"):
+            usernames = [a["username"] for a in st.session_state['found_accounts'] if "username" in a]
+            if not usernames:
+                st.error("No usernames to save. Please search for accounts first.")
+            else:
+                try:
+                    with open(save_filename, "w") as f:
+                        for u in usernames:
+                            f.write(u + "\n")
+                    st.success(f"Saved {len(usernames)} accounts to {save_filename}")
+                except Exception as e:
+                    st.error(f"Error saving to {save_filename}: {e}")
+    else:
+        st.info("No accounts to save. Please search for accounts first.")
 
 elif page == "✅ Verify Accounts":
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("### Verify Instagram Accounts")
     st.markdown("Check if Instagram accounts are public and accessible")
     
-    # List all files matching 'verified_accounts*.txt'
-    verified_files = glob.glob("verified_accounts*.txt")
+    # List all files matching '*.txt' (was 'verified_accounts*.txt')
+    verified_files = glob.glob("*.txt")
     if not verified_files:
         verified_files = ["verified_accounts.txt"]
     
@@ -601,7 +600,7 @@ elif page == "📥 Download Content":
                 progress_bar.progress(1.0)
                 if result:
                     status_container.success(f"Successfully downloaded {posts_limit} posts from @{username}")
-                    st.info(f"Content saved to @{username}_simple/")
+                    st.info(f"Content saved to @{username}/")
                     if st.button("Analyze Downloaded Content"):
                         st.session_state.analyze_username = username
                         st.session_state.page = "📊 Analyze Data"
@@ -609,18 +608,31 @@ elif page == "📥 Download Content":
                 else:
                     status_container.error(f"Failed to download from @{username}. The account may be private, does not exist, or rate limited.")
             except Exception as e:
-                status_container.error(f"Error: {e}")
+                error_msg = str(e)
+                if (
+                    'Please wait a few minutes before you try again.' in error_msg or
+                    '401 Unauthorized' in error_msg or
+                    'rate limit' in error_msg.lower()
+                ):
+                    status_container.error("Instagram rate limit reached or temporary block. Please wait a few minutes before you try again. This is a restriction from Instagram, not the app.")
+                else:
+                    status_container.error(f"Error: {e}")
     else:  # Batch download
         st.markdown("#### Batch Download from Verified Accounts")
-        # Load verified accounts from file
+        # Allow user to select any .txt file as the source
+        txt_files = glob.glob("*.txt")
+        if not txt_files:
+            txt_files = ["verified_accounts.txt"]
+        selected_file = st.selectbox("Select a verified accounts file to use for batch download:", txt_files)
+        # Load verified accounts from selected file
         verified_accounts = []
-        if os.path.isfile("verified_accounts.txt"):
-            with open("verified_accounts.txt", "r") as f:
+        if os.path.isfile(selected_file):
+            with open(selected_file, "r") as f:
                 verified_accounts = [line.strip() for line in f if line.strip()]
         if not verified_accounts:
-            st.warning("No verified accounts found in verified_accounts.txt. Please verify accounts first.")
+            st.warning(f"No verified accounts found in {selected_file}. Please verify accounts first.")
         else:
-            st.info(f"Found {len(verified_accounts)} verified accounts")
+            st.info(f"Found {len(verified_accounts)} verified accounts in {selected_file}")
             col1, col2 = st.columns(2)
             with col1:
                 selected_accounts = st.multiselect(
@@ -630,7 +642,6 @@ elif page == "📥 Download Content":
                 )
             with col2:
                 posts_per_account = st.slider("Posts per account:", 1, 5, 2)
-                batch_size = st.slider("Batch size:", 1, 5, 3)
             metadata_only = st.checkbox("Download metadata only (no images/videos)", value=True)
             if st.button("Start Batch Download") and selected_accounts:
                 progress_bar = st.progress(0)
@@ -648,7 +659,15 @@ elif page == "📥 Download Content":
                         else:
                             status_container.error(f"Failed to download from @{account}. The account may be private, does not exist, or rate limited.")
                     except Exception as e:
-                        status_container.error(f"Error downloading from @{account}: {e}")
+                        error_msg = str(e)
+                        if (
+                            'Please wait a few minutes before you try again.' in error_msg or
+                            '401 Unauthorized' in error_msg or
+                            'rate limit' in error_msg.lower()
+                        ):
+                            status_container.error("Instagram rate limit reached or temporary block. Please wait a few minutes before you try again. This is a restriction from Instagram, not the app.")
+                        else:
+                            status_container.error(f"Error downloading from @{account}: {e}")
                     completed += 1
                     progress_bar.progress(completed / total_accounts)
                 status_container.success(f"Batch download complete! Successfully downloaded from {successful}/{total_accounts} accounts")
@@ -663,123 +682,36 @@ elif page == "📊 Analyze Data":
     
     # Analysis options
     analysis_option = st.radio("What would you like to analyze?", [
-        "Recently downloaded content",
         "Existing JSON files",
-        "Sample data (for demonstration)",
         "Combine All Downloaded JSONs"
     ])
     
-    if analysis_option == "Recently downloaded content":
-        # In a real app, you'd detect downloaded content here
-        # For demo, we'll simulate some accounts with downloaded content
-        
-        downloaded_accounts = ["natgeo", "chrisburkard", "beautifuldestinations"]
-        selected_account = st.selectbox("Select account to analyze:", downloaded_accounts)
-        
-        if st.button("Start Analysis") and selected_account:
-            with st.spinner(f"Analyzing content from @{selected_account}..."):
-                # Simulate analysis process
-                time.sleep(2)
-                
-                # Generate some simulated post data
-                posts = []
-                for i in range(5):
-                    is_video = random.choice([True, False])
-                    likes = random.randint(5000, 100000)
-                    comments = random.randint(100, 5000)
-                    views = random.randint(20000, 500000) if is_video else 0
-                    
-                    posts.append({
-                        'username': selected_account,
-                        'post_id': f"B{random.randint(100000, 999999)}",
-                        'is_video': is_video,
-                        'likes': likes,
-                        'comments': comments,
-                        'views': views,
-                        'timestamp': (datetime.now() - pd.Timedelta(days=random.randint(1, 30))).strftime("%Y-%m-%d"),
-                        'engagement_rate': round((likes + comments*2) / 1000000 * 100, 2),
-                        'smart_score': round(random.uniform(30, 95), 2)
-                    })
-                
-                df = pd.DataFrame(posts)
-                st.session_state.analyzed_data = df  # Store in session for later use
-                
-                # Generate CSV filename with timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                csv_filename = f"{selected_account}_analysis_{timestamp}.csv"
-                
-                # Display analysis results
-                st.success(f"Analysis complete for {len(df)} posts from @{selected_account}")
-                
-                # Show summary statistics
-                st.markdown("#### Summary Statistics")
-                st.dataframe(df[['likes', 'comments', 'views', 'engagement_rate', 'smart_score']].describe().round(2), use_container_width=True)
-                
-                # Visualize engagement
-                st.markdown("#### Engagement Visualization")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Create a bar chart for engagement metrics
-                    metrics_df = pd.DataFrame({
-                        'Metric': ['Likes', 'Comments', 'Views'],
-                        'Average': [df['likes'].mean(), df['comments'].mean(), df['views'].mean()]
-                    })
-                    
-                    fig = px.bar(metrics_df, x='Metric', y='Average', 
-                                title=f'Average Engagement Metrics for @{selected_account}',
-                                color='Average',
-                                color_continuous_scale=px.colors.sequential.Plasma)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    # Create a scatter plot for individual posts
-                    fig = px.scatter(df, x='likes', y='comments', 
-                                    size='smart_score', color='smart_score',
-                                    hover_name='post_id',
-                                    title='Likes vs Comments by Smart Score',
-                                    color_continuous_scale=px.colors.sequential.Viridis)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Add full data display
-                st.markdown("#### Full Data")
-                st.dataframe(df, use_container_width=True)
-                
-                # Add download button
-                csv = df.to_csv(index=False).encode('utf-8')
-                col1, col2 = st.columns([1, 1])
-                
-                with col1:
-                    st.download_button(
-                        label=f"📥 Download CSV for @{selected_account}",
-                        data=csv,
-                        file_name=csv_filename,
-                        mime="text/csv",
-                        help="Download the complete analysis as a CSV file"
-                    )
-                
-                with col2:
-                    # View top content button
-                    if st.button("View Top Content Recommendations"):
-                        st.session_state.analyzed_data = df
-                        st.session_state.page = "🏆 View Recommendations"
-                        st.experimental_rerun()
-    
-    elif analysis_option == "Existing JSON files":
+    if analysis_option == "Existing JSON files":
         st.info("This will analyze JSON files that were previously downloaded")
-        folder_path = st.text_input("Enter path to folder containing JSON files:", value="./")
-        if st.button("Analyze JSON Files") and folder_path:
+        # List all folders and .json files in the current directory
+        folder_options = [f for f in os.listdir(".") if os.path.isdir(f)]
+        json_files = [f for f in os.listdir(".") if f.endswith(".json")]
+        options = folder_options + json_files
+        selected_path = st.selectbox("Select a folder or JSON file to analyze:", options)
+        if st.button("Analyze JSON Files") and selected_path:
             with st.spinner("Analyzing JSON files..."):
                 if analyze_collected_data is not None:
-                    # Use the imported function to analyze real JSON files
                     try:
-                        df = analyze_collected_data("")  # Keyword is not used for folder search
+                        # If a folder is selected, use combine_all_jsons_and_analyze to recursively load all JSON files in that folder
+                        if os.path.isdir(selected_path):
+                            result = combine_all_jsons_and_analyze(selected_path)
+                            if result is not None:
+                                df, csv_name = result
+                            else:
+                                df = None
+                        else:
+                            # If a file, load it as a DataFrame
+                            import pandas as pd
+                            df = pd.read_json(selected_path)
                         if df is not None and not df.empty:
                             st.session_state.analyzed_data = df
                             st.success(f"Analysis complete! {len(df)} posts analyzed.")
                             st.dataframe(df.head(20), use_container_width=True)
-                            # Download button
                             csv = df.to_csv(index=False).encode('utf-8')
                             st.download_button(
                                 label="📥 Download Complete CSV Analysis",
@@ -788,114 +720,14 @@ elif page == "📊 Analyze Data":
                                 mime="text/csv",
                                 help="Download the complete analysis results as a CSV file"
                             )
-                            if st.button("View Top Content Recommendations"):
-                                st.session_state.analyzed_data = df
-                                st.session_state.page = "🏆 View Recommendations"
-                                st.experimental_rerun()
+                            st.markdown("#### Top Content Recommendations")
+                            show_top_content_recommendations(df)
                         else:
-                            st.error("No valid data found in JSON files.")
+                            st.error("No valid data found in the selected path.")
                     except Exception as e:
                         st.error(f"Error analyzing JSON files: {e}")
                 else:
                     st.error("analyze_collected_data function not found in Insta Content Automation.py.")
-    
-    elif analysis_option == "Sample data":
-        st.info("Analyzing sample data for demonstration purposes")
-        
-        if st.button("Generate Sample Analysis"):
-            with st.spinner("Generating sample analysis..."):
-                # Wait for effect
-                time.sleep(2)
-                
-                # Generate sample data for multiple accounts
-                accounts = ["natgeo", "chrisburkard", "beautifuldestinations", 
-                           "lonelyplanet", "expertvagabond"]
-                
-                posts = []
-                for _ in range(50):
-                    account = random.choice(accounts)
-                    is_video = random.choice([True, False])
-                    likes = random.randint(5000, 500000)
-                    comments = random.randint(100, 20000)
-                    views = random.randint(20000, 2000000) if is_video else 0
-                    days_ago = random.randint(1, 90)
-                    
-                    # Calculate a realistic smart score
-                    base_score = (likes/10000) + (comments/500) 
-                    recency_boost = max(0, 30 - days_ago) / 3
-                    video_boost = 10 if is_video and views > 100000 else 0
-                    smart_score = min(99, max(10, base_score + recency_boost + video_boost))
-                    
-                    posts.append({
-                        'username': account,
-                        'post_id': f"B{random.randint(100000, 999999)}",
-                        'is_video': is_video,
-                        'likes': likes,
-                        'comments': comments,
-                        'views': views,
-                        'timestamp': (datetime.now() - pd.Timedelta(days=days_ago)).strftime("%Y-%m-%d"),
-                        'engagement_rate': round((likes + comments*2) / 1000000 * 100, 2),
-                        'smart_score': round(smart_score, 2)
-                    })
-                
-                df = pd.DataFrame(posts)
-                st.session_state.analyzed_data = df  # Store in session state
-                
-                # Generate CSV filename with timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                csv_filename = f"sample_analysis_{timestamp}.csv"
-                
-                # Display analysis results
-                st.success(f"Sample analysis complete for {len(df)} posts from {len(accounts)} accounts")
-                
-                # Visualize engagement by account
-                st.markdown("#### Engagement by Account")
-                
-                account_engagement = df.groupby('username').agg({
-                    'likes': 'mean',
-                    'comments': 'mean',
-                    'smart_score': 'mean'
-                }).reset_index()
-                
-                fig = px.bar(account_engagement, x='username', y='smart_score',
-                            color='likes',
-                            title='Average Smart Score by Account',
-                            labels={'username': 'Account', 'smart_score': 'Smart Score'},
-                            color_continuous_scale=px.colors.sequential.Viridis)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Distribution of smart scores
-                st.markdown("#### Smart Score Distribution")
-                
-                fig = px.histogram(df, x='smart_score', 
-                                  title='Distribution of Smart Scores',
-                                  color_discrete_sequence=['#F56040'])
-                fig.update_layout(xaxis_title='Smart Score', yaxis_title='Count')
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Add data preview
-                st.markdown("#### Data Preview")
-                st.dataframe(df.head(10), use_container_width=True)
-                
-                # Add download section
-                csv = df.to_csv(index=False).encode('utf-8')
-                
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    st.download_button(
-                        label="📥 Download Sample Analysis CSV",
-                        data=csv,
-                        file_name=csv_filename,
-                        mime="text/csv",
-                        help="Download the complete sample analysis as a CSV file"
-                    )
-                
-                with col2:
-                    # View top content button
-                    if st.button("View Top Content Recommendations"):
-                        st.session_state.analyzed_data = df
-                        st.session_state.page = "🏆 View Recommendations"
-                        st.experimental_rerun()
     
     elif analysis_option == "Combine All Downloaded JSONs":
         st.info("This will combine every JSON in every subfolder and analyze the combined CSV.")
@@ -1037,7 +869,8 @@ elif page == "⚙️ Settings":
     # OpenAI API Key input
     st.text_input("OpenAI API Key", type="password", key="openai_api_key", on_change=set_openai_key)
     
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    
 
 # Initialize app state based on navigation
 if 'page' in st.session_state:
